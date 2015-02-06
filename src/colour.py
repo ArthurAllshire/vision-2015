@@ -4,9 +4,10 @@ import freenect
 from collections import OrderedDict
 from parseconfig import parse_config
 from types import NoneType
+from numpy.ma.core import get_data
 
 class TrackColour(object):
-    def __init__(self, colour='yellow'):
+    def __init__(self, colour='blue'):
         self.colour = colour
         self.configuration = parse_config(colour) 
               
@@ -62,13 +63,39 @@ class TrackColour(object):
             rect = cv2.minAreaRect(contour)
             print "Rect = "
             print rect
+            #print self.get_data(rect, image)
             
             obb_image = image
             obb = cv2.cv.BoxPoints(rect)
             obb = np.int0(obb)
             cv2.drawContours(obb_image, [obb], -1, (0,0,255), 3)
-            return obb_image
-        return image
+            return obb_image, rect
+        return image, ((0, 0), (0, 0), 0)
+    
+    def rotate_image(self, image, rect):
+        rows,cols,depth = image.shape
+        
+        stats = self.get_data(rect, image)
+        
+        M = cv2.getRotationMatrix2D((cols/2,rows/2),stats['angle'],1)
+        dst = cv2.warpAffine(image,M,(cols,rows))
+        
+        return dst
+        
+    
+    def get_data(self, rect, image):
+        img_height, img_width, depth = image.shape
+        if rect[1][0]>rect[1][1]:
+            w=rect[1][0]/img_width
+            h=rect[1][1]/img_width
+            angle = rect[2]
+        else:
+            w=rect[1][1]/img_width
+            h=rect[1][0]/img_width
+            angle = 90+rect[2]
+        x = 2*(rect[0][0]/img_width)-1
+        y = 2*(rect[0][1]/img_height)-1
+        return OrderedDict([('x',x), ('y',y), ('w',w), ('h',h), ('angle',angle)])
         
         
     def get_video(self):
@@ -81,8 +108,11 @@ if __name__ == "__main__":
     
     while True:
         black, image, contour = track.find_contour(track.erdi(track.threshold(track.get_video())))
-        image = track.get_obb_image(contour, image)
-        cv2.imshow("Thresholded", image)
+        image, rect = track.get_obb_image(contour, image)
+        cv2.imshow("Normal    ", image)
+        if rect[2] != 0:
+            image = track.rotate_image(image, rect)
+        cv2.imshow("Processed", image)
         k = cv2.waitKey(5) & 0xFF
         if k == 27:
             break
