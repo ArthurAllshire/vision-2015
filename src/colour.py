@@ -3,8 +3,6 @@ import numpy as np
 import freenect
 from collections import OrderedDict
 from parseconfig import parse_config
-from types import NoneType
-from numpy.ma.core import get_data
 
 class TrackColour(object):
     def __init__(self, colour='blue'):
@@ -53,66 +51,44 @@ class TrackColour(object):
         
         cv2.drawContours(black, [target_contour], -1, (255, 0, 0), cv2.cv.CV_FILLED)
         
-        return black, image, target_contour
+        return black, target_contour
     
-    def get_min_area(self, contour):
-        return 
-    
-    def get_obb_image(self, contour, image):
+    def get_bounding_rect(self, contour, image):
         if contour != None:
-            rect = cv2.minAreaRect(contour)
-            print "Rect = "
-            print rect
-            #print self.get_data(rect, image)
-            
-            obb_image = image
-            obb = cv2.cv.BoxPoints(rect)
-            obb = np.int0(obb)
-            cv2.drawContours(obb_image, [obb], -1, (0,0,255), 3)
-            return obb_image, rect
-        return image, ((0, 0), (0, 0), 0)
-    
-    def rotate_image(self, image, rect):
-        rows,cols,depth = image.shape
-        
-        stats = self.get_data(rect, image)
-        
-        M = cv2.getRotationMatrix2D((cols/2,rows/2),stats['angle'],1)
-        dst = cv2.warpAffine(image,M,(cols,rows))
-        
-        return dst
-        
-    
-    def get_data(self, rect, image):
-        img_height, img_width, depth = image.shape
-        if rect[1][0]>rect[1][1]:
-            w=rect[1][0]/img_width
-            h=rect[1][1]/img_width
-            angle = rect[2]
-        else:
-            w=rect[1][1]/img_width
-            h=rect[1][0]/img_width
-            angle = 90+rect[2]
-        x = 2*(rect[0][0]/img_width)-1
-        y = 2*(rect[0][1]/img_height)-1
-        return OrderedDict([('x',x), ('y',y), ('w',w), ('h',h), ('angle',angle)])
-        
+            x,y,w,h = cv2.boundingRect(contour)
+            print x
+            print y
+            print w
+            print h
+            rect_image = image
+            cv2.rectangle(rect_image,(x,y),(x+w,y+h),(0,255,0),2)
+            return rect_image, (x, y, w, h)
+        return image, (0, 0, 0, 0)
         
     def get_video(self):
         array,_ = freenect.sync_get_video()
         array = cv2.cvtColor(array,cv2.COLOR_RGB2BGR)
         return array
     
+    def find(self):
+        #called by the depth class to get a mask for depth
+        raw_image = self.get_video()
+        contour_mask, contour = self.find_contour(self.erdi(self.threshold(raw_image)))
+        bounded_image, rect = self.get_bounding_rect(contour, raw_image)
+        found = False
+        if rect[2] is not 0:
+            found = True
+
+        return contour_mask, contour, found, bounded_image, rect
+    
 if __name__ == "__main__":
     track = TrackColour()
     
     while True:
-        black, image, contour = track.find_contour(track.erdi(track.threshold(track.get_video())))
-        image, rect = track.get_obb_image(contour, image)
-        cv2.imshow("Normal    ", image)
-        if rect[2] != 0:
-            image = track.rotate_image(image, rect)
-        cv2.imshow("Processed", image)
+        mask, contour, found, image, rect = track.find()
+        cv2.imshow("Image", image)
+        cv2.imshow("Mask", mask)
+        
         k = cv2.waitKey(5) & 0xFF
         if k == 27:
             break
