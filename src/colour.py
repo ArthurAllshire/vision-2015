@@ -5,7 +5,7 @@ from collections import OrderedDict
 from parseconfig import parse_config
 
 class TrackColour(object):
-    def __init__(self, colour='blue'):
+    def __init__(self, colour='yellow'):
         self.colour = colour
         self.configuration = parse_config(colour) 
               
@@ -83,12 +83,10 @@ class TrackColour(object):
     
 if __name__ == "__main__":
     track = TrackColour()
-    
     while True:
         mask, contour, found, image, rect = track.find()
         cv2.imshow("Image", image)
         cv2.imshow("Mask", mask)
-        
         k = cv2.waitKey(5) & 0xFF
         if k == 27:
             break

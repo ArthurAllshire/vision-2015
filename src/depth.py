@@ -4,6 +4,7 @@ import freenect
 from collections import OrderedDict
 from parseconfig import parse_config
 from colour import *
+import udp
 
 class TrackDepth(object):
     def __init__(self):
@@ -59,9 +60,9 @@ class TrackDepth(object):
             #print "length: " + str(len(means))
             #print "means: " + str(means)
             #print "greatest: " + str(greatest_mean)
-            print self.calculate_offsets(depth_image, x, y, tote_image, means, smallest_mean_index, tote_far_corner_short_index)
-            return tote_image
-        return depth_image
+            offsets =  self.calculate_offsets(depth_image, x, y, tote_image, means, smallest_mean_index, tote_far_corner_short_index)
+            return tote_image, offsets
+        return depth_image, [0, 0, 0]
     
     def calculate_offsets(self, depth_image, tote_x, tote_y, tote_image, tote_means, tote_near_corner_index , tote_far_corner_short_index):
         #calculate the numbers that we are able to send over udp to the robot code as offsets
@@ -73,7 +74,7 @@ class TrackDepth(object):
         short_side_center_x = (tote_x +(tote_means[tote_far_corner_short_index] + tote_means[tote_near_corner_index]))/2
         x_diff = 2*(short_side_center_x/depth_image_width)-1
         y_diff = depth_image[tote_y + (tote_image_height/2), short_side_center_x]
-        return x_diff, y_diff, z_diff
+        return [x_diff, y_diff, z_diff]
         
         
                 
@@ -98,12 +99,13 @@ if __name__ == "__main__":
         contour_mask, contour, found, rect_image, rect = track_colour.find()
         depth = cv2.bitwise_and(depth, depth, mask=contour_mask)
         mask = track_depth.white_threshold(depth, contour_mask)
-        sides_depth = track_depth.find_sides(depth, mask, rect)
+        sides_depth, offsets = track_depth.find_sides(depth, mask, rect)
         depth = cv2.cvtColor(depth, cv2.COLOR_GRAY2BGR)
         cv2.imshow("Sides Depth", sides_depth)
         cv2.imshow("Depth Mask", depth)
         cv2.imshow("Colour", rect_image)
         cv2.imshow("Mask", mask)
+        udp.udp_send(offsets)
         k = cv2.waitKey(5) & 0xFF
         if k == 27:
             break
